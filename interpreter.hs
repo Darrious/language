@@ -32,7 +32,7 @@ type Env = [(Vars, Integer)]
 env1 = [("X", 1), ("Y", 5)]
 env2 = [("X", 23), ("Y", 3)]
 env3 = [("X", 12), ("Y", 1)]
-env4 = [("X", 100), ("Y", 6), ("Z", 4)]
+env4 = [("X", 5), ("Y", 6), ("Z", 11)]
 
 
 -- lookUp x e returns the value assigned to x in environment e
@@ -46,7 +46,7 @@ update :: Vars -> Integer -> Env -> Env
 update x y [] = []
 update x y env = [if (a == x) then (x, y) else (a,b) | (a, b) <- env]
 
--- -- Question 1: Evaluate
+-- Evaluate
 evala :: Env -> AExpr -> Integer
 evala env (Const a) = a
 evala env (Var v) = lookUp v env
@@ -55,4 +55,9 @@ evala env (Sub a b) = evala env a - evala env b
 evala env (Mul a b) = evala env a * evala env b
 evala env (Div a b) = evala env a `div` evala env b
 
---evalb :: Env -> BExpr -> Integer
+evalb :: Env -> BExpr -> Bool
+evalb env TT = True
+evalb env FF = False
+evalb env (And a b) = (evalb env a) && (evalb env b)
+evalb env (Eql a b) = (evala env a) == (evala env b)
+evalb env (Lt a b) = (evala env a) == (evala env b)
