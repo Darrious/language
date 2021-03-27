@@ -43,7 +43,7 @@ lookUp x env =  snd (head (filter (\(a, _) ->  a == x ) env))
 
 -- update x v e sets the values of x to v and keeps other variables in e the same
 update :: Vars -> Integer -> Env -> Env
-update x y [] = []
+update x y [] = [(x,y)]
 update x y env = [if (a == x) then (x, y) else (a,b) | (a, b) <- env]
 
 -- Evaluate
@@ -60,4 +60,12 @@ evalb env TT = True
 evalb env FF = False
 evalb env (And a b) = (evalb env a) && (evalb env b)
 evalb env (Eql a b) = (evala env a) == (evala env b)
-evalb env (Lt a b) = (evala env a) == (evala env b)
+evalb env (Lt a b) = (evala env a) < (evala env b)
+
+instr1 = (IfThenElse (Lt (Var "X") (Const 10)) (Assign ("X") (Add (Const 1)(Var "X"))) (Nop))
+
+-- Execution
+exec :: Instr -> Env -> Env
+exec Nop env = env
+exec (Assign a b) env = update a (evala env b) env
+exec (IfThenElse a b c) env = if (evalb env a) then (exec b env) else (exec c env)
