@@ -2,7 +2,7 @@
     - Darrious Barger
     - Worked alone
     - Completed all (I think..)
-}
+-}
 
 
 import Data.Char
