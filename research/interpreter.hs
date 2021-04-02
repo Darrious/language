@@ -1,3 +1,9 @@
+{-
+    - Darrious Barger
+    - Worked alone
+    - Completed all (I think..)
+}
+
 
 import Data.Char
 
@@ -69,17 +75,26 @@ evalb :: Env -> BExpr -> Bool
 evalb env TT        = True
 evalb env FF        = False
 evalb env (And a b) = (evalb env a) && (evalb env b)
+evalb env (Or  a b) = (evalb env a) || (evalb env b)
 evalb env (Eql a b) = (evala env a) == (evala env b)
 evalb env (Lt a b)  = (evala env a) < (evala env b)
+evalb env (Not b)   = (not (evalb env b))
 
 
 instr1 = (IfThenElse (Lt (Var "X") (Const 10)) (Assign ("X") (Add (Const 1)(Var "X"))) (Nop))
 instr2 = (While (Lt (Var "X") (Const 5)) (Assign ("X")(Add (Var "X") (Const 1))))
 instr3 = (While (Lt (Var "X") (Const 5)) (Do [(Assign ("X")(Add (Var "X") (Const 1))),
                                               (Assign ("Y")(Sub (Var "Y") (Const 1)))]))
+
 instr4 = (Assign "X" (Const 3))
 instr5 = Do [instr4]
+instr6 = Do [Assign "c" (Const 1),Assign "r" (Const 1),While (Lt (Var "c") (Var "x"))
+                                                      (Do [Assign "r" (Mul (Var "r") (Var "c")),
+                                                           Assign "c" (Add (Var "c") (Const 1))])]
 
+instr7 = Do [Assign "c" (Const 1),Assign "r" (Const 3)]
+instr8 = Do[ (Assign "C" (Const 7)), (While (Lt (Var "X") (Var "C")) (Do [(Assign ("X")(Add (Var "X") (Const 1))),
+                                              (Assign ("Y")(Sub (Var "Y") (Const 1)))]))]
 
 
 -- Execution
@@ -176,6 +191,8 @@ isVSym (x:xs) = isLower x && q1 xs
         q1 (y:ys) = (isAlpha y || isDigit y || y `elem` "-_'") && q1 ys
 
 
+
+-- Parsing
 preproc :: String -> String
 preproc [] = []
 preproc ('/':'\\':xs) = " /\\ " ++ preproc xs
@@ -200,54 +217,33 @@ lexer :: String -> [Token]
 lexer "" = []
 lexer s = map classify (words (preproc s))
 
+-- Infinite loop unless x is included in the env
+
 test1 :: String
 test1 =  "int c := 1 ; int r := 1 ; while ( c < x ) { r := r * c ; c := c + 1 ; }"
 
-test2 :: String
-test2 =  "int c:=1 ; int r:= 1; while (c<x) {r := r*c; c := c+1 ; }"
+-- test2 :: String
+-- test2 =  "int c:=1 ; int r:= 3; while (c<r) {r := r*c; c := c+1 ; }"
 
+test3 :: String
+test3 =  "int c:=1 ; int r:= 3;"
 
--- data Instr = Assign Vars AExpr
---            | IfThenElse BExpr Instr Instr
---            | While BExpr Instr
---            | Do [Instr]
---            | Nop
---     deriving Show
--- data Token = VSym String | CSym Integer | BSym Bool
---            | UOp UOps | BOp BOps
---            | LPar | RPar | LBra | RBra | Semi
---            | Keyword String
---            | Err
---            | PA AExpr | PB BExpr | PI Instr
---     deriving Show
-      -- data BOps = AddOp | SubOp | MulOp | DivOp | AndOp | OrOp | EqlOp | LtOp | AssignOp
-      --     deriving Show
-      --
-      -- data BExpr = TT | FF
-      --            | And BExpr BExpr
-      --            | Or BExpr BExpr  | Not BExpr
-      --            | Eql AExpr AExpr
-      --            | Lt AExpr AExpr
-      --     deriving Show
--- -- Parser
--- data AExpr = Var Vars | Const Integer
---            | Add AExpr AExpr | Sub AExpr AExpr
---            | Mul AExpr AExpr | Div AExpr AExpr
---     deriving Show
+test4 :: String
+test4 =  "int x:=5; int c:=1; int r:= 3; while ( c < x ) { r := r * c ; c := c + 1; } "
+
+test5 :: String
+test5 = "fact:=1; c :=1 ; while (! (5 < c)) { c := (c+1); fact := (fact * c)} "
 
 
 sr :: [Token] -> [Token] -> [Token]
 sr (VSym v : ts)                            i = sr (PA (Var v) : ts) i
 sr (CSym c : ts)                            i = sr (PA (Const c) : ts) i
---
 -- --sr s@(PA e2 : BOp op1 : PA e1 : stack) (BOp op2 : input) | op1 < op2 = sr (BOp op2 : s) input
---
 sr (BSym False : ts)                        i = sr (PB FF : ts) i
 sr (BSym True : ts)                         i = sr (PB TT : ts) i
 
 sr (RPar : PA p : LPar : ts)                i = sr (PA p : ts) i
 sr (RPar : PB p : LPar : ts)                i = sr (PB p : ts) i
-
 sr (UOp NotOp : PB p1 : ts)                 i = sr (PB (Not p1) : ts) i
 sr (PA p2 : BOp LtOp : PA p1 : ts)          i = sr (PB (Lt p1 p2) : ts) i
 sr (PA p2 : BOp EqlOp : PA p1 : ts)         i = sr (PB (Eql p1 p2) : ts) i
@@ -257,83 +253,100 @@ sr (PA p2 : BOp AddOp : PA p1 : ts)         i = sr (PA (Add p1 p2) : ts) i
 sr (PA p2 : BOp MulOp : PA p1 : ts)         i = sr (PA (Mul p1 p2) : ts) i
 sr (PA p2 : BOp SubOp : PA p1 : ts)         i = sr (PA (Sub p1 p2) : ts) i
 sr (PA p2 : BOp DivOp : PA p1 : ts)         i = sr (PA (Div p1 p2) : ts) i
--- sr (PA a : BOp AssignOp : PA (Var b) : ts ) i = sr (PI (Assign b a) : ts) i
-
-sr (PI i2 : Keyword "else" : PI i1 : Keyword "then" : PB b : Keyword "if" : ts) i
-                                    = sr (PI (IfThenElse b i1 i2) : ts) i
-sr (PI ins : PB b : Keyword "while" : stack) i = sr (PI (While b ins) : stack) i
-
--- sr (RBra : Semi : PI ins : ts) i        = sr (PDo [ins] : ts) i
--- sr (RBra : stack) i              = sr (PDo [] : stack) i
--- sr (PDo s : Semi : PI ins : ts) i = sr (PDo (ins:s) : ts) i
--- sr (PDo s : LBra :ts) i          = sr (PI (Do s) : ts) i
-
+-- sr (PI i2 : Keyword "else" : PI i1 : Keyword "then" : PB b : Keyword "if" : ts) i
+--                                     = sr (PI (IfThenElse b i1 i2) : ts) i
 sr stack (i:is) = sr (i:stack) is
 sr stack []     = stack
 
 
+-- I understand that this is an excessive amount of helpers, but you have to process all assignment
+-- statements before whiles, and all whiles before braces and so on
 processAssignment :: [Token] -> [Token]
 processAssignment (PA a : BOp AssignOp : PA (Var b) : ts) = [(PI (Assign b a))] ++ processAssignment ts
 processAssignment (a:ts) = [a] ++ processAssignment ts
-processAssignment [] = [Err]
+processAssignment [] = []
+
+processWhile :: [Token] -> [Token]
+processWhile (PI ins : PB b : Keyword "while" : ts) =  [(PI (While b (ins)))] ++ processWhile ts
+processWhile (a:ts) = [a] ++ processWhile ts
+processWhile [] = []
+
+processIf :: [Token] -> [Token]
+processIf (PI i2 : Keyword "else" : PI i1 : Keyword "then" : PB b : Keyword "if" : ts)
+                                     = [(PI (IfThenElse b i1 i2))] ++ processIf ts
+processIf (a:ts) = [a] ++ processIf ts
+processIf [] = []
+
+processNot :: [Token] -> [Token]
+processNot [] = []
+processNot (RPar : PB p1 : UOp NotOp : LPar:  ts) = processNot ([(PB (Not p1))] ++ ts)
+processNot (a:ts) = [a] ++ processNot ts
 
 
 processBraces :: [Token]-> [Token]
-processBraces (RBra : Semi : PI ins : ts) =  processBraces [(PDo [ins])]++ts
-processBraces (PDo s : Semi : PI ins : ts)  = processBraces [(PDo (ins:s))]++ts
-
--- processBraces (RBra : stack)               = processBraces [(PDo [])] ++ processBraces stack
--- processBraces (PDo s : Semi : PI ins : ts)  = processBraces [(PDo (ins:s))] ++ processBraces ts
--- processBraces (PDo s : LBra :ts)           = processBraces [(PI (Do s))] ++ processBraces ts
+processBraces (RBra : Semi : PI ins : ts) =  processBraces ([(PDo [ins])] ++ ts)
+processBraces (RBra : PI ins : ts) =  processBraces ([(PDo [ins])] ++ ts)
+processBraces (PDo s : Semi : PI ins : ts)  = processBraces ([(PDo (ins:s))] ++ ts)
+processBraces (RBra : ts)                   = processBraces ([(PDo [])] ++ ts)
+processBraces (PDo s : Semi : PI ins : ts)  = processBraces ([(PDo (ins:s))] ++ ts)
+processBraces (PDo s : LBra :ts)           = processBraces ([PI (Do s)] ++ ts)
 processBraces (a:ts) = [a] ++ processBraces ts
 processBraces [] = []
 
-testBOp = [(VSym "r"),(BOp AssignOp),  (VSym "r"), (BOp MulOp), (VSym "c")]
 
---testParser = exec (parser (lexer test2)) []
-processedTokens =  sr [] (lexer test2)
-processedAssign = (processAssignment (processedTokens))
-processedBraces =  (processBraces (processedAssign))
--- processedList = getList processBraces
--- parsed = exec (Do (processedList)) []
+semiChecker :: [Token] -> [Token]
+semiChecker [] = []
+semiChecker (Semi : PI a : ts) = [PI a] ++ semiChecker ts
+semiChecker (a:ts) = [a] ++ semiChecker ts
 
 
+-- NEED:  to check int type vs bool type, currently discarding it
+listInstr :: [Token] -> [Instr]
+listInstr [] = []
+listInstr (PI ins : ts) = [ins] ++ listInstr ts
+listInstr (Type IntType : ts)   = listInstr ts
+listInstr (a:as) = listInstr as
+
+--
+-- processedTokens = (sr [] (lexer test5))
+-- processedAssign = (processAssignment (processedTokens))
+-- processedBraces = processBraces (processedAssign)
+-- processedNot = processNot processedBraces
+-- processedWhile = processWhile processedNot
+-- semiChecked = semiChecker processedWhile
+-- parsedInstr = Do (reverseList (listInstr semiChecked))
+-- result = exec parsedInstr []
 
 
+
+parse :: [Token] -> Instr
+parse tokens = Do (reverseList ( listInstr (semiChecker
+                  (processWhile (processIf
+                  (processNot (processBraces
+                  (processAssignment tokens))))))))
 
 reverseList :: [a] -> [a]
 reverseList [] = []
 reverseList (x:xs) = reverseList xs ++ [x]
 
-getList :: [Token] -> [Instr]
-getList [] = []
-getList (PI i : ts) = [i] ++ getList ts
-getList (a:as) = getList as
 
+-- IO
+main :: IO ()
+main = do
+  putStrLn "Enter a .imp file with code."
+  filename <- getLine
+  contents <- readFile filename
 
+  let lexed = lexer contents
+  putStrLn "Here is the result of lexical analysis:"
+  putStrLn (show lexed)
+  putStrLn "------------------------------------------"
 
+  let parsed = parse (sr [] lexed)
+  putStrLn "Here is the result of parsing:"
+  putStrLn (show parsed)
+  putStrLn "------------------------------------------"
 
-whileTest :: [Token] -> Instr
-whileTest ((Keyword "While") : LBra : PB b : PDo p : RBra : ts) = (While b (Do p))
-
-answer = exec (whileTest whileTestList) []
-
-pdoList = PDo [(Assign "C" (Add (Var "C") (Const 1)))]
-pdoCond = Lt (Var "C") (Const 5)
-
-whileTestList :: [Token]
-whileTestList = [(Keyword "While"), (LBra), (PB pdoCond), (pdoList), (RBra)]
--- parseAExpr :: [Token] -> AExpr
--- parseAExpr input = case sr [] input of
---   [PA a] -> a
---   ps -> error ("No parse:" ++ show ps)
---
--- parseBExpr :: [Token] -> BExpr
--- parseBExpr input = case sr [] input of
---   [PB a] -> a
---   ps -> error ("No parse:" ++ show ps)
---
--- parseInstrs :: [Token] -> [Instr]
--- parseInstrs ts = map tr $ sr [] ts
---   where getInstr (PI i) = i
---         getInstr _ = error "The list returned by the parser contains non-instructions"
+  let answer = exec parsed []
+  putStrLn "Here is the result of the program:"
+  putStrLn (show answer)

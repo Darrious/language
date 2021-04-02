@@ -1,0 +1,9 @@
+int x:=5;
+int c:=1;
+int r:= 3;
+
+while ( c < x )
+{
+  r := r * c ;
+  c := c + 1;
+}
