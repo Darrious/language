@@ -28,6 +28,7 @@ data BExpr = TT | FF
            | Or BExpr BExpr  | Not BExpr
            | Eql AExpr AExpr
            | Lt AExpr AExpr
+           | Gt AExpr AExpr
     deriving Show
 
 -- Instructions
@@ -88,6 +89,7 @@ evalb env (And a b) = (evalb env a) && (evalb env b)
 evalb env (Or  a b) = (evalb env a) || (evalb env b)
 evalb env (Eql a b) = (evala env a) == (evala env b)
 evalb env (Lt a b)  = (evala env a) < (evala env b)
+evalb env (Lt a b)  = (evala env a) > (evala env b)
 evalb env (Not b)   = (not (evalb env b))
 
 
@@ -261,6 +263,7 @@ preproc ('*':xs) = " * " ++ preproc xs
 preproc ('%':xs) = " % " ++ preproc xs
 preproc ('/':xs) = " / " ++ preproc xs
 preproc ('<':xs) = " < " ++ preproc xs
+preproc ('>':xs) = " > " ++ preproc xs
 preproc ('=':'=':xs) = " == " ++ preproc xs
 preproc (':':'=':xs) = " := " ++ preproc xs
 preproc ('-':xs) = " - " ++ preproc xs
@@ -291,7 +294,7 @@ test5 :: String
 test5 = "fact:=1; c :=1 ; while (! (5 < c)) { c := (c+1); fact := (fact * c)} "
 
 test6 :: String
-test6 = "if x==5 then x:=0 else x:=1"
+test6 = "if (x==5) then { x:=0; } else {x:=1;}"
 
 sr :: [Token] -> [Token] -> [Token]
 sr (VSym v : stack)                    input = sr (PA (Var v) : stack) input  -- AExpr -> Var v, Var v -> VSym v
@@ -309,6 +312,7 @@ sr (RPar : PB e : LPar : stack)        input = sr (PB e : stack) input
 
 sr (PA a2 : BOp EqlOp : PA a1 : stack)  input = sr (PB (Eql a1 a2) : stack) input -- BEXpr -> AExpr == AExpr
 sr (PA a2 : BOp LtOp : PA a1 : stack)  input  = sr (PB (Lt a1 a2) : stack) input -- BExpr -> AExpr (BOp LtOp) AExpr
+sr (PA a2 : BOp GtOp : PA a1 : stack)  input  = sr (PB (Gt a1 a2) : stack) input
 sr (PB b2 : BOp OrOp : PB b1 : stack)  input  = sr (PB (Or b1 b2) : stack) input     -- BEXpr -> BExpr \/ BExpr
 sr (PB b : UOp NotOp : stack) input           = sr (PB (Not b) : stack) input   -- BExpr -> Not BExpr
 
