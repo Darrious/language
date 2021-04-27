@@ -18,7 +18,7 @@ type FName = String
 data AExpr = Var Vars | Const Integer
            | Add AExpr AExpr | Sub AExpr AExpr
            | Mul AExpr AExpr | Div AExpr AExpr
-           | FApply FName [AExpr]
+           | Mod AExpr AExpr| FApply FName [AExpr]
     deriving Show
 
 
@@ -81,6 +81,7 @@ evala env (Add a b) = evala env a + evala env b
 evala env (Sub a b) = evala env a - evala env b
 evala env (Mul a b) = evala env a * evala env b
 evala env (Div a b) = evala env a `div` evala env b
+evala env (Mod a b) = evala env a `mod` evala env b
 
 evalb :: Env -> BExpr -> Bool
 evalb env TT        = True
@@ -105,7 +106,7 @@ instr6 = Do [Assign "c" (Const 1),Assign "r" (Const 1),While (Lt (Var "c") (Var 
                                                            Assign "c" (Add (Var "c") (Const 1))])]
 
 instr7 = Do [Assign "c" (Const 1),Assign "r" (Const 3)]
-instr8 = Do[ (Assign "C" (Const 7)), (While (Lt (Var "X") (Var "C")) (Do [(Assign ("X")(Add (Var "X") (Const 1))),
+instr8 = Do [(Assign "C" (Const 7)), (While (Lt (Var "X") (Var "C")) (Do [(Assign ("X")(Add (Var "X") (Const 1))),
                                               (Assign ("Y")(Sub (Var "Y") (Const 1)))]))]
 
 
@@ -140,7 +141,7 @@ sum100output2 = lookUp "X" (run sum100)
 -- Lexical Analysis
 data UOps = NotOp deriving Show
 data BOps = AddOp | SubOp | MulOp | DivOp | AndOp | OrOp | EqlOp | LtOp | GtOp
-          | AssignOp
+          | AssignOp | ModOp
     deriving (Show,Enum,Eq,Ord)
 
 
@@ -207,6 +208,7 @@ classify s@"+" = BOp AddOp
 classify s@"-" = BOp SubOp
 classify s@"/" = BOp DivOp
 classify s@"*" = BOp MulOp
+classify s@"%" = BOp ModOp
 classify s@"\\/" = BOp OrOp
 classify s@"/\\" = BOp AndOp
 classify s@"==" = BOp EqlOp
@@ -300,14 +302,12 @@ sr :: [Token] -> [Token] -> [Token]
 sr (VSym v : stack)                    input = sr (PA (Var v) : stack) input  -- AExpr -> Var v, Var v -> VSym v
 sr (CSym c : stack)                    input = sr (PA (Const c) : stack) input -- AExpr -> Const c, Const c -> CSym c
 sr s@(PA e2 : BOp op1 : PA e1 : stack) (BOp op2 : input) | op1 < op2 = sr (BOp op2 : s) input
---sr s@(PA e2 : BOp MulOp : PA e1 : stack) (BOp ExptOp:input) = sr (BOp ExptOp:s) input
---sr s@(PA e2 : BOp AddOp : PA e1 : stack) (BOp ExptOp:input) = sr (BOp ExptOp:s) input
---sr s@(PA e2 : BOp AddOp : PA e1 : stack) (BOp MulOp:input)  = sr (BOp MulOp:s) input
 sr (PA e2 : BOp AddOp : PA e1 : stack) input = sr (PA (Add e1 e2) : stack) input -- AExpr -> AExpr (AddOp) AExpr
 sr (PA e2 : BOp MulOp : PA e1 : stack) input = sr (PA (Mul e1 e2) : stack) input
 sr (PA e2 : BOp DivOp : PA e1 : stack) input = sr (PA (Div e1 e2) : stack) input
-
-sr (RPar : PA e : LPar : stack)        input = sr (PA e : stack) input -- AExpr -> ( AExpr )
+sr (PA e2 : BOp SubOp : PA e1 : stack) input = sr (PA (Sub e1 e2) : stack) input
+sr (PA e2 : BOp ModOp : PA e1 : stack) input = sr (PA (Mod e1 e2) : stack) input
+sr (RPar : PA e : LPar : stack)        input = sr (PA e : stack) input 
 sr (RPar : PB e : LPar : stack)        input = sr (PB e : stack) input
 
 sr (PA a2 : BOp EqlOp : PA a1 : stack)  input = sr (PB (Eql a1 a2) : stack) input -- BEXpr -> AExpr == AExpr
