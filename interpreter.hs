@@ -89,7 +89,7 @@ evalb env (And a b) = (evalb env a) && (evalb env b)
 evalb env (Or  a b) = (evalb env a) || (evalb env b)
 evalb env (Eql a b) = (evala env a) == (evala env b)
 evalb env (Lt a b)  = (evala env a) < (evala env b)
-evalb env (Lt a b)  = (evala env a) > (evala env b)
+evalb env (Gt a b)  = (evala env a) > (evala env b)
 evalb env (Not b)   = (not (evalb env b))
 
 
@@ -294,7 +294,7 @@ test5 :: String
 test5 = "fact:=1; c :=1 ; while (! (5 < c)) { c := (c+1); fact := (fact * c)} "
 
 test6 :: String
-test6 = "if (x==5) then { x:=0; } else {x:=1;}"
+test6 = "x:=3; if (x>5) then { x:=0; } else {x:=1;}"
 
 sr :: [Token] -> [Token] -> [Token]
 sr (VSym v : stack)                    input = sr (PA (Var v) : stack) input  -- AExpr -> Var v, Var v -> VSym v
@@ -316,7 +316,7 @@ sr (PA a2 : BOp GtOp : PA a1 : stack)  input  = sr (PB (Gt a1 a2) : stack) input
 sr (PB b2 : BOp OrOp : PB b1 : stack)  input  = sr (PB (Or b1 b2) : stack) input     -- BEXpr -> BExpr \/ BExpr
 sr (PB b : UOp NotOp : stack) input           = sr (PB (Not b) : stack) input   -- BExpr -> Not BExpr
 
-sr (PA a : BOp AssignOp : PA (Var c) : stack) input = sr (PI (Assign c a) : stack) input -- Instr -> Var AssignOp AExpr
+sr (Semi : PA a : BOp AssignOp : PA (Var c) : stack) input = sr (PI (Assign c a) : stack) input -- Instr -> Var AssignOp AExpr
 sr (PI i : PB b : Keyword "while" : stack) input = sr (PI (While b i) : stack) input -- Instr -> While BExpr Instr
 
 sr (PI i : Keyword "else" : PI i2 : Keyword "then" : PB b : Keyword "if" : stack) input
@@ -340,14 +340,14 @@ listInstr (PI ins : ts) = [ins] ++ listInstr ts
 listInstr (a:as) = listInstr as
 
 
-x = head $ listInstr (sr [] (lexer test6))
+test7 = (sr [] (lexer test6))
 
 -- IO
 main :: IO ()
 main = do
   -- putStrLn "Enter a .imp file with code."
   -- filename <- getLine
-  let filename = "./research/testcase2.imp"
+  let filename = "testIf.imp"
   contents <- readFile filename
 
   let lexed = lexer contents
@@ -355,11 +355,11 @@ main = do
   putStrLn (show lexed)
   putStrLn "------------------------------------------"
 
-  let parsed = sr [] (LBra : lexed ++ [RBra])
+  let parsed = sr [] $ lexed
   putStrLn "Here is the result of parsing:"
   putStrLn (show parsed)
   putStrLn "------------------------------------------"
 
-  let answer = exec (head (listInstr parsed)) []
+  let answer = exec ( Do(reverse $ listInstr parsed)) []
   putStrLn "Here is the result of the program:"
   putStrLn (show answer)
