@@ -15,7 +15,7 @@ type Vars = String
 type FName = String
 
 -- Arithmetic expressions
-data AExpr = Var Vars | Const Integer
+data AExpr = Var Vars | Const Values
            | Add AExpr AExpr | Sub AExpr AExpr
            | Mul AExpr AExpr | Div AExpr AExpr
            | Mod AExpr AExpr| FApply FName [AExpr]
@@ -46,42 +46,67 @@ data FunDefn = Function FName [Vars] [Instr]
 type Defs = [FunDefn]
 
 -- Environment
--- integer -> Values
-type Env = [(Vars, Integer)]
-env1 = [("X", 1), ("Y", 99)]
-env2 = [("X", 23), ("Y", 3)]
-env3 = [("X", 12), ("Y", 1)]
-env4 = [("X", 5), ("Y", 6), ("Z", 11)]
-env5 = [("Y", 6), ("Z", 11)]
+data Values = IntPrim Integer | BoolPrim Bool | VNull
+    deriving Show
+type Env = [(Vars, Values)]
+env1 = [("X", IntPrim 1), ("Y", IntPrim  99)]
+env2 = [("X", IntPrim 23), ("Y", IntPrim 3)]
+env3 = [("X", IntPrim 12), ("Y", IntPrim 1)]
+env4 = [("X", IntPrim 5), ("Y", IntPrim 6), ("Z", IntPrim 11)]
+env5 = [("Y", IntPrim 6), ("Z", IntPrim 11)]
+env6 = [("X", IntPrim 5),("flag", BoolPrim True)]
+env7 = [("X", IntPrim 10)]
+env8 = [("Z", BoolPrim True)]
 
 -- lookUp x e returns the value assigned to x in environment e
-lookUp :: Vars -> Env -> Integer
--- lookUp x [] = error "Variable has not be initialized"
-lookUp x [] = 0
-lookUp x ((a,as):b) = if (a == x) then as else (lookUp x b)
+-- lookUp :: Vars -> Env -> Integer
+-- -- lookUp x [] = error "Variable has not be initialized"
+-- lookUp x [] = 0
+-- lookUp x ((a,as):b) = if (a == x) then as else (lookUp x b)
 
--- lookUp x env =  snd (find (\(a, _) ->  a == x ) env)
-
+lookUp :: Vars -> Env -> Values
+lookUp x [] = VNull
+lookUp x ((a, IntPrim num) : b)   = if (a == x) then IntPrim num else (lookUp x b)
+lookUp x ((a, BoolPrim bool) : b) = if (a == x) then BoolPrim bool else (lookUp x b)
 
 -- update x v e sets the values of x to v and keeps other variables in e the same
-update :: Vars -> Integer -> Env -> Env
+-- todo: check if updated value matches type of value
+update :: Vars -> Values -> Env -> Env
 update x y []  = [(x,y)]
-update x y env = if (length(checkedList) > 0)
-                 then (updatedList)
-                 else env ++ [(x,y)]
-  where checkedList = filter (\(a,_) -> x == a) env  --Does list contain element?
-        updatedList = [if (a == x) then (x, y) else (a,b) | (a, b) <- env] -- if contains element
-                                                                           -- update it
+update x prim env = if (length(filterEnv x env) > 0)
+                 then updateEnv x prim env
+                 else env ++ [(x, prim)]
+filterEnv :: Vars -> Env -> Env
+filterEnv x env = filter(\(a, _) -> (x==a)) env
+
+updateEnv :: Vars -> Values -> Env -> Env
+updateEnv x (IntPrim prim) env = [if (a == x) then (x, IntPrim prim) else (a, b) | (a, b) <- env]
+updateEnv x (BoolPrim prim) env = [if (a == x) then (x, BoolPrim prim) else (a, b) | (a, b) <- env]
+
+
+extractInt :: Values -> Vars -> Integer
+extractInt (IntPrim x) _ = x
+extractInt x var = error ("Actual value (" ++ show x ++
+                          ") - Expected IntPrim -  Make sure var "
+                         ++ (show var) ++ " has been initialized.")
+
+extractBool :: Values -> Vars -> Bool
+extractBool (BoolPrim x) _ = x
+extractBool x var = error ("Actual value (" ++ show x ++
+                       ") - Expected BoolPrim -  Make sure var "
+                      ++ (show var) ++ " has been initialized.")
 
 -- Evaluate
 evala :: Env -> AExpr -> Integer
-evala env (Const a) = a
-evala env (Var v)   = lookUp v env
+evala env (Const (IntPrim a)) = a
+evala env (Var v)   = extractInt(lookUp v env) v
 evala env (Add a b) = evala env a + evala env b
 evala env (Sub a b) = evala env a - evala env b
 evala env (Mul a b) = evala env a * evala env b
 evala env (Div a b) = evala env a `div` evala env b
 evala env (Mod a b) = evala env a `mod` evala env b
+
+testA = Add (Var "X") (Const (IntPrim 9))
 
 evalb :: Env -> BExpr -> Bool
 evalb env TT        = True
@@ -94,27 +119,17 @@ evalb env (Gt a b)  = (evala env a) > (evala env b)
 evalb env (Not b)   = (not (evalb env b))
 
 
-instr1 = (IfThenElse (Lt (Var "X") (Const 10)) (Assign ("X") (Add (Const 1)(Var "X"))) (Nop))
-instr2 = (While (Lt (Var "X") (Const 5)) (Assign ("X")(Add (Var "X") (Const 1))))
-instr3 = (While (Lt (Var "X") (Const 5)) (Do [(Assign ("X")(Add (Var "X") (Const 1))),
-                                              (Assign ("Y")(Sub (Var "Y") (Const 1)))]))
+instr1 = IfThenElse (Lt (Const (IntPrim 15)) (Const (IntPrim 10)))
+                    (Assign "X" (Add (Const (IntPrim 10)) (Const (IntPrim 15))))
+                    (Assign "X" (Const (IntPrim 0)))
 
-instr4 = (Assign "X" (Const 3))
-instr5 = Do [instr4]
-instr6 = Do [Assign "c" (Const 1),Assign "r" (Const 1),While (Lt (Var "c") (Var "x"))
-                                                      (Do [Assign "r" (Mul (Var "r") (Var "c")),
-                                                           Assign "c" (Add (Var "c") (Const 1))])]
-
-instr7 = Do [Assign "c" (Const 1),Assign "r" (Const 3)]
-instr8 = Do [(Assign "C" (Const 7)), (While (Lt (Var "X") (Var "C")) (Do [(Assign ("X")(Add (Var "X") (Const 1))),
-                                              (Assign ("Y")(Sub (Var "Y") (Const 1)))]))]
-
-
+instr2 = Do [(Assign "X" (Const (IntPrim 0))), While (Lt (Var "X") (Const (IntPrim 10)))
+               (Do [Assign "X" (Add (Const (IntPrim 1)) (Var "X"))])]
 -- Execution
 exec :: Instr -> Env -> Env
 exec (Nop) env                = env
-exec (Assign a (Const x)) env = update a x env
-exec (Assign a b) env         = update a (evala env b) env
+exec (Assign a (Const prim)) env = update a prim env
+exec (Assign a b) env         = update a (IntPrim (evala env b)) env
 exec (IfThenElse a b c) env   = if (evalb env a) then (exec b env) else (exec c env)
 exec (While a b) env          = if (evalb env a) then (exec (While a b) (exec b env))
                                 else env
@@ -123,21 +138,26 @@ exec (Do (i:is)) env          = exec (Do is) (exec i env)
 
 
 run :: Program -> Env
-run p = exec (Do p) [("X", 0)]
+run p = exec (Do p) []
 
 
 sum100 :: Program
-sum100 = [ (Assign "X" (Const 0)),
-           (Assign "C" (Const 1)),
-           (While (Lt (Var "C") (Const 101))
+sum100 = [(Assign "X" (Const (IntPrim 0))),
+           (Assign "C" (Const (IntPrim 1))),
+           (While (Lt (Var "C") (Const (IntPrim 101)))
                  (Do [(Assign "X" (Add (Var "X") (Var "C"))),
-                      (Assign "C" (Add (Var "C") (Const 1)))
+                      (Assign "C" (Add (Var "C") (Const (IntPrim 1))))
                      ]))]
 
-sum100output = lookUp "C" (run sum100)
-sum100output2 = lookUp "X" (run sum100)
+-- find50 :: Program
+-- find50 = [(Assign "found" (Const (BoolPrim False)))
+--         (Assign "num" (Const (IntPrim 0)))
+--         (While )]
 
-
+-- sum100output = lookUp "C" (run sum100)
+-- sum100output2 = lookUp "X" (run sum100)
+--
+--
 -- Lexical Analysis
 data UOps = NotOp deriving Show
 data BOps = AddOp | SubOp | MulOp | DivOp | AndOp | OrOp | EqlOp | LtOp | GtOp
@@ -147,29 +167,28 @@ data BOps = AddOp | SubOp | MulOp | DivOp | AndOp | OrOp | EqlOp | LtOp | GtOp
 
 data Types = IntType | DoubleType | BoolType | StringType
    deriving Show
-
-data Values = IntPrim Integer | DoublePrim Double | BoolPrim Bool | StringPrim String
-    deriving Show
-
-
-
-data Array = Arr [Values]
-data LList = Node Values LList | Null deriving Show
-data Struct = Array | LList deriving Show
-
-
-
--- function vs var names
--- instr block
--- Decl
--- add method type to AExpr
--- data Method = Function FName Types Decl [Instr]
 --
--- type Decl = [(Vars, Types)]
 
-
-
-
+--
+--
+--
+-- data Array = Arr [Values]
+-- data LList = Node Values LList | Null deriving Show
+-- data Struct = Array | LList deriving Show
+--
+--
+--
+-- -- function vs var names
+-- -- instr block
+-- -- Decl
+-- -- add method type to AExpr
+-- -- data Method = Function FName Types Decl [Instr]
+-- --
+-- -- type Decl = [(Vars, Types)]
+--
+--
+--
+--
 data Token = VSym Vars | CSym Integer | BSym Bool | FSym FName
            | UOp UOps | BOp BOps
            | LPar | RPar | LBra | RBra | Semi
@@ -298,16 +317,19 @@ test5 = "fact:=1; c :=1 ; while (! (5 < c)) { c := (c+1); fact := (fact * c)} "
 test6 :: String
 test6 = "x:=3; if (x>5) then { x:=0; } else {x:=1;}"
 
+test8 = "int x:=3;"
+
 sr :: [Token] -> [Token] -> [Token]
-sr (VSym v : stack)                    input = sr (PA (Var v) : stack) input  -- AExpr -> Var v, Var v -> VSym v
-sr (CSym c : stack)                    input = sr (PA (Const c) : stack) input -- AExpr -> Const c, Const c -> CSym c
+sr (CSym c : stack)                    input = sr (PA (Const (IntPrim c)) : stack) input -- AExpr -> Const c, Const c -> CSym c
+sr (VSym v : Type _  : stack )    input = sr (PA (Var v) : stack) input
+
 sr s@(PA e2 : BOp op1 : PA e1 : stack) (BOp op2 : input) | op1 < op2 = sr (BOp op2 : s) input
 sr (PA e2 : BOp AddOp : PA e1 : stack) input = sr (PA (Add e1 e2) : stack) input -- AExpr -> AExpr (AddOp) AExpr
 sr (PA e2 : BOp MulOp : PA e1 : stack) input = sr (PA (Mul e1 e2) : stack) input
 sr (PA e2 : BOp DivOp : PA e1 : stack) input = sr (PA (Div e1 e2) : stack) input
 sr (PA e2 : BOp SubOp : PA e1 : stack) input = sr (PA (Sub e1 e2) : stack) input
 sr (PA e2 : BOp ModOp : PA e1 : stack) input = sr (PA (Mod e1 e2) : stack) input
-sr (RPar : PA e : LPar : stack)        input = sr (PA e : stack) input 
+sr (RPar : PA e : LPar : stack)        input = sr (PA e : stack) input
 sr (RPar : PB e : LPar : stack)        input = sr (PB e : stack) input
 
 sr (PA a2 : BOp EqlOp : PA a1 : stack)  input = sr (PB (Eql a1 a2) : stack) input -- BEXpr -> AExpr == AExpr
@@ -340,26 +362,26 @@ listInstr (PI ins : ts) = [ins] ++ listInstr ts
 listInstr (a:as) = listInstr as
 
 
-test7 = (sr [] (lexer test6))
-
--- IO
-main :: IO ()
-main = do
-  -- putStrLn "Enter a .imp file with code."
-  -- filename <- getLine
-  let filename = "testIf.imp"
-  contents <- readFile filename
-
-  let lexed = lexer contents
-  putStrLn "Here is the result of lexical analysis:"
-  putStrLn (show lexed)
-  putStrLn "------------------------------------------"
-
-  let parsed = sr [] $ lexed
-  putStrLn "Here is the result of parsing:"
-  putStrLn (show parsed)
-  putStrLn "------------------------------------------"
-
-  let answer = exec ( Do(reverse $ listInstr parsed)) []
-  putStrLn "Here is the result of the program:"
-  putStrLn (show answer)
+test7 = (sr [] (lexer test8))
+--
+-- -- IO
+-- main :: IO ()
+-- main = do
+--   -- putStrLn "Enter a .imp file with code."
+--   -- filename <- getLine
+--   let filename = "testIf.imp"
+--   contents <- readFile filename
+--
+--   let lexed = lexer contents
+--   putStrLn "Here is the result of lexical analysis:"
+--   putStrLn (show lexed)
+--   putStrLn "------------------------------------------"
+--
+--   let parsed = sr [] $ lexed
+--   putStrLn "Here is the result of parsing:"
+--   putStrLn (show parsed)
+--   putStrLn "------------------------------------------"
+--
+--   let answer = exec ( Do(reverse $ listInstr parsed)) []
+--   putStrLn "Here is the result of the program:"
+--   putStrLn (show answer)
