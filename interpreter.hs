@@ -29,6 +29,7 @@ data BExpr = TT | FF
            | Eql AExpr AExpr
            | Lt AExpr AExpr
            | Gt AExpr AExpr
+           | BVar Vars
     deriving Show
 
 -- Instructions
@@ -131,6 +132,9 @@ exec (Nop) env                = env
 exec (Assign a (Const prim)) env = update a prim env
 exec (Assign a b) env         = update a (IntPrim (evala env b)) env
 exec (IfThenElse a b c) env   = if (evalb env a) then (exec b env) else (exec c env)
+exec (While (BVar v) b) env   = if (evalb env ( boolToExpr(extractBool(lookUp v env) v)))
+                                then (exec (While (BVar v) b) (exec b env))
+                                else env
 exec (While a b) env          = if (evalb env a) then (exec (While a b) (exec b env))
                                 else env
 exec (Do []) env              = env
@@ -149,15 +153,6 @@ sum100 = [(Assign "X" (Const (IntPrim 0))),
                       (Assign "C" (Add (Var "C") (Const (IntPrim 1))))
                      ]))]
 
--- find50 :: Program
--- find50 = [(Assign "found" (Const (BoolPrim False)))
---         (Assign "num" (Const (IntPrim 0)))
---         (While )]
-
--- sum100output = lookUp "C" (run sum100)
--- sum100output2 = lookUp "X" (run sum100)
---
---
 -- Lexical Analysis
 data UOps = NotOp deriving Show
 data BOps = AddOp | SubOp | MulOp | DivOp | AndOp | OrOp | EqlOp | LtOp | GtOp
@@ -242,6 +237,8 @@ classify s@"(" =  LPar
 classify s@")" =  RPar
 classify s@";" =  Semi
 classify s@"," = Comma
+classify s@"true" = BSym True
+classify s@"false" = BSym False
 classify s | isVSym s = VSym s
 classify s | isFun s = FSym s
 classify s | isCSym s = CSym (read s)
@@ -312,18 +309,26 @@ test4 :: String
 test4 =  "int x:=5; int c:=1; int r:= 3; while ( c < x ) { r := r * c ; c := c + 1; } "
 
 test5 :: String
-test5 = "fact:=1; c :=1 ; while (! (5 < c)) { c := (c+1); fact := (fact * c)} "
+test5 = "fact:=1; c :=1 ; while (! (5 < c)) { c := (c+1); fact := (fact * c); } "
 
 test6 :: String
 test6 = "x:=3; if (x>5) then { x:=0; } else {x:=1;}"
 
-test8 = "int x:=3;"
+test8 = "int x:=3; bool flag:=true;"
+
+
+boolToExpr :: Bool -> BExpr
+boolToExpr False = FF
+boolToExpr True = TT
+
 
 sr :: [Token] -> [Token] -> [Token]
-sr (CSym c : stack)                    input = sr (PA (Const (IntPrim c)) : stack) input -- AExpr -> Const c, Const c -> CSym c
+sr (CSym c : stack)               input = sr (PA (Const (IntPrim c)) : stack) input
+sr (BSym c : stack)               input = sr (PA (Const (BoolPrim c)) : stack) input
 sr (VSym v : Type _  : stack )    input = sr (PA (Var v) : stack) input
+sr (VSym b : stack)               input = sr (PA (Var b) : stack) input
 
-sr s@(PA e2 : BOp op1 : PA e1 : stack) (BOp op2 : input) | op1 < op2 = sr (BOp op2 : s) input
+sr s@(PA e2 : BOp  op1 : PA e1 : stack) (BOp op2 : input) | op1 < op2 = sr (BOp op2 : s) input
 sr (PA e2 : BOp AddOp : PA e1 : stack) input = sr (PA (Add e1 e2) : stack) input -- AExpr -> AExpr (AddOp) AExpr
 sr (PA e2 : BOp MulOp : PA e1 : stack) input = sr (PA (Mul e1 e2) : stack) input
 sr (PA e2 : BOp DivOp : PA e1 : stack) input = sr (PA (Div e1 e2) : stack) input
@@ -331,7 +336,6 @@ sr (PA e2 : BOp SubOp : PA e1 : stack) input = sr (PA (Sub e1 e2) : stack) input
 sr (PA e2 : BOp ModOp : PA e1 : stack) input = sr (PA (Mod e1 e2) : stack) input
 sr (RPar : PA e : LPar : stack)        input = sr (PA e : stack) input
 sr (RPar : PB e : LPar : stack)        input = sr (PB e : stack) input
-
 sr (PA a2 : BOp EqlOp : PA a1 : stack)  input = sr (PB (Eql a1 a2) : stack) input -- BEXpr -> AExpr == AExpr
 sr (PA a2 : BOp LtOp : PA a1 : stack)  input  = sr (PB (Lt a1 a2) : stack) input -- BExpr -> AExpr (BOp LtOp) AExpr
 sr (PA a2 : BOp GtOp : PA a1 : stack)  input  = sr (PB (Gt a1 a2) : stack) input
@@ -340,14 +344,15 @@ sr (PB b : UOp NotOp : stack) input           = sr (PB (Not b) : stack) input   
 
 sr (Semi : PA a : BOp AssignOp : PA (Var c) : stack) input = sr (PI (Assign c a) : stack) input -- Instr -> Var AssignOp AExpr
 sr (PI i : PB b : Keyword "while" : stack) input = sr (PI (While b i) : stack) input -- Instr -> While BExpr Instr
+sr (PI i : RPar:  VSym b : LPar : Keyword "while" : stack) input = sr (PI (While (BVar b) i) : stack) input -- Instr -> While BExpr Instr
 
 sr (PI i : Keyword "else" : PI i2 : Keyword "then" : PB b : Keyword "if" : stack) input
                                              = sr (PI (IfThenElse b i2 i) : stack) input
 
-sr (FSym f : ts ) (LPar : RPar : is)         = sr (PA (FApply f []) : ts) is
-sr (FSym f : ts ) (LPar : is)                = sr (PF f [] : ts) is
-sr (RPar : PA a : PF f args : ts) i          = sr (PA (FApply f (reverse $ a:args)):ts) i
-sr (Comma : PA a : PF f args : ts) i         = sr (PF f (a:args) : ts) i
+-- sr (FSym f : ts ) (LPar : RPar : is)         = sr (PA (FApply f []) : ts) is
+-- sr (FSym f : ts ) (LPar : is)                = sr (PF f [] : ts) is
+-- sr (RPar : PA a : PF f args : ts) i          = sr (PA (FApply f (reverse $ a:args)):ts) i
+-- sr (Comma : PA a : PF f args : ts) i         = sr (PF f (a:args) : ts) i
 
 sr (RBra : PI i : stack) input = sr (PDo [i] : stack) input
 sr (RBra : stack) input = sr (PDo [] : stack) input
@@ -356,32 +361,33 @@ sr (PDo s : LBra : stack) input = sr (PI (Do s) : stack) input
 sr stack                           (i:input) = sr (i:stack) input
 sr stack [] = stack
 
+
 listInstr :: [Token] -> [Instr]
 listInstr [] = []
 listInstr (PI ins : ts) = [ins] ++ listInstr ts
 listInstr (a:as) = listInstr as
 
 
-test7 = (sr [] (lexer test8))
---
--- -- IO
--- main :: IO ()
--- main = do
---   -- putStrLn "Enter a .imp file with code."
---   -- filename <- getLine
---   let filename = "testIf.imp"
---   contents <- readFile filename
---
---   let lexed = lexer contents
---   putStrLn "Here is the result of lexical analysis:"
---   putStrLn (show lexed)
---   putStrLn "------------------------------------------"
---
---   let parsed = sr [] $ lexed
---   putStrLn "Here is the result of parsing:"
---   putStrLn (show parsed)
---   putStrLn "------------------------------------------"
---
---   let answer = exec ( Do(reverse $ listInstr parsed)) []
---   putStrLn "Here is the result of the program:"
---   putStrLn (show answer)
+test7 = (sr [] (lexer test5))
+
+-- IO
+main :: IO ()
+main = do
+  -- putStrLn "Enter a .imp file with code."
+  -- filename <- getLine
+  let filename = "testIf.imp"
+  contents <- readFile filename
+
+  let lexed = lexer contents
+  putStrLn "Here is the result of lexical analysis:"
+  putStrLn (show lexed)
+  putStrLn "------------------------------------------"
+
+  let parsed = sr [] $ lexed
+  putStrLn "Here is the result of parsing:"
+  putStrLn (show parsed)
+  putStrLn "------------------------------------------"
+
+  let answer = exec ( Do(reverse $ listInstr parsed)) []
+  putStrLn "Here is the result of the program:"
+  putStrLn (show answer)
