@@ -344,7 +344,7 @@ sr (PB b : UOp NotOp : stack) input           = sr (PB (Not b) : stack) input   
 
 sr (Semi : PA a : BOp AssignOp : PA (Var c) : stack) input = sr (PI (Assign c a) : stack) input -- Instr -> Var AssignOp AExpr
 sr (PI i : PB b : Keyword "while" : stack) input = sr (PI (While b i) : stack) input -- Instr -> While BExpr Instr
-sr (PI i : RPar:  VSym b : LPar : Keyword "while" : stack) input = sr (PI (While (BVar b) i) : stack) input -- Instr -> While BExpr Instr
+sr (PI i : PA (Var b) : Keyword "while" : stack) input = sr (PI (While (BVar b) i) : stack) input -- Instr -> While BExpr Instr
 
 sr (PI i : Keyword "else" : PI i2 : Keyword "then" : PB b : Keyword "if" : stack) input
                                              = sr (PI (IfThenElse b i2 i) : stack) input
@@ -356,7 +356,7 @@ sr (PI i : Keyword "else" : PI i2 : Keyword "then" : PB b : Keyword "if" : stack
 
 sr (RBra : PI i : stack) input = sr (PDo [i] : stack) input
 sr (RBra : stack) input = sr (PDo [] : stack) input
-sr (PDo s : Semi : PI i : stack) input = sr (PDo (i:s) : stack) input
+sr (PDo s  : PI i : stack) input = sr (PDo (i:s) : stack) input
 sr (PDo s : LBra : stack) input = sr (PI (Do s) : stack) input
 sr stack                           (i:input) = sr (i:stack) input
 sr stack [] = stack
@@ -383,7 +383,7 @@ main = do
   putStrLn (show lexed)
   putStrLn "------------------------------------------"
 
-  let parsed = sr [] $ lexed
+  let parsed = sr [] lexed
   putStrLn "Here is the result of parsing:"
   putStrLn (show parsed)
   putStrLn "------------------------------------------"
