@@ -131,11 +131,17 @@ exec :: Instr -> Env -> Env
 exec (Nop) env                = env
 exec (Assign a (Const prim)) env = update a prim env
 exec (Assign a b) env         = update a (IntPrim (evala env b)) env
-exec (IfThenElse a b c) env   = if (evalb env a) then (exec b env) else (exec c env)
+exec (IfThenElse (BVar v) b c) env   = if (evalb env (boolToExpr(extractBool(lookUp v env) v)))
+                                       then (exec b env)
+                                       else (exec c env)
+exec (IfThenElse a b c) env   = if (evalb env a)
+                                then (exec b env)
+                                else (exec c env)
 exec (While (BVar v) b) env   = if (evalb env ( boolToExpr(extractBool(lookUp v env) v)))
                                 then (exec (While (BVar v) b) (exec b env))
                                 else env
-exec (While a b) env          = if (evalb env a) then (exec (While a b) (exec b env))
+exec (While a b) env          = if (evalb env a)
+                                then (exec (While a b) (exec b env))
                                 else env
 exec (Do []) env              = env
 exec (Do (i:is)) env          = exec (Do is) (exec i env)
@@ -323,42 +329,50 @@ boolToExpr True = TT
 
 
 sr :: [Token] -> [Token] -> [Token]
-sr (CSym c : stack)               input = sr (PA (Const (IntPrim c)) : stack) input
-sr (BSym c : stack)               input = sr (PA (Const (BoolPrim c)) : stack) input
-sr (VSym v : Type _  : stack )    input = sr (PA (Var v) : stack) input
-sr (VSym b : stack)               input = sr (PA (Var b) : stack) input
+sr (CSym c : stack)               i = sr (PA (Const (IntPrim c)) : stack) i
+sr (BSym c : stack)               i = sr (PA (Const (BoolPrim c)) : stack) i
+sr (VSym v : Type _  : stack )    i = sr (PA (Var v) : stack) i
+sr (VSym b : stack)               i = sr (PA (Var b) : stack) i
 
-sr s@(PA e2 : BOp  op1 : PA e1 : stack) (BOp op2 : input) | op1 < op2 = sr (BOp op2 : s) input
-sr (PA e2 : BOp AddOp : PA e1 : stack) input = sr (PA (Add e1 e2) : stack) input -- AExpr -> AExpr (AddOp) AExpr
-sr (PA e2 : BOp MulOp : PA e1 : stack) input = sr (PA (Mul e1 e2) : stack) input
-sr (PA e2 : BOp DivOp : PA e1 : stack) input = sr (PA (Div e1 e2) : stack) input
-sr (PA e2 : BOp SubOp : PA e1 : stack) input = sr (PA (Sub e1 e2) : stack) input
-sr (PA e2 : BOp ModOp : PA e1 : stack) input = sr (PA (Mod e1 e2) : stack) input
-sr (RPar : PA e : LPar : stack)        input = sr (PA e : stack) input
-sr (RPar : PB e : LPar : stack)        input = sr (PB e : stack) input
-sr (PA a2 : BOp EqlOp : PA a1 : stack)  input = sr (PB (Eql a1 a2) : stack) input -- BEXpr -> AExpr == AExpr
-sr (PA a2 : BOp LtOp : PA a1 : stack)  input  = sr (PB (Lt a1 a2) : stack) input -- BExpr -> AExpr (BOp LtOp) AExpr
-sr (PA a2 : BOp GtOp : PA a1 : stack)  input  = sr (PB (Gt a1 a2) : stack) input
-sr (PB b2 : BOp OrOp : PB b1 : stack)  input  = sr (PB (Or b1 b2) : stack) input     -- BEXpr -> BExpr \/ BExpr
-sr (PB b : UOp NotOp : stack) input           = sr (PB (Not b) : stack) input   -- BExpr -> Not BExpr
+sr s@(PA e2 : BOp  op1 : PA e1 : stack) (BOp op2 : i) | op1 < op2
+                                                        = sr (BOp op2 : s) i
+sr (PA e2 : BOp AddOp : PA e1 : stack) i = sr (PA (Add e1 e2) : stack) i
+sr (PA e2 : BOp MulOp : PA e1 : stack) i = sr (PA (Mul e1 e2) : stack) i
+sr (PA e2 : BOp DivOp : PA e1 : stack) i = sr (PA (Div e1 e2) : stack) i
+sr (PA e2 : BOp SubOp : PA e1 : stack) i = sr (PA (Sub e1 e2) : stack) i
+sr (PA e2 : BOp ModOp : PA e1 : stack) i = sr (PA (Mod e1 e2) : stack) i
+sr (RPar : PA e : LPar : stack)        i = sr (PA e : stack) i
+sr (RPar : PB e : LPar : stack)        i = sr (PB e : stack) i
+sr (PA a2 : BOp EqlOp : PA a1 : stack)  i = sr (PB (Eql a1 a2) : stack) i
+sr (PA a2 : BOp LtOp : PA a1 : stack)  i  = sr (PB (Lt a1 a2) : stack) i
+sr (PA a2 : BOp GtOp : PA a1 : stack)  i  = sr (PB (Gt a1 a2) : stack) i
+sr (PB b2 : BOp OrOp : PB b1 : stack)  i  = sr (PB (Or b1 b2) : stack) i
+sr (PB b : UOp NotOp : stack) i           = sr (PB (Not b) : stack) i
 
-sr (Semi : PA a : BOp AssignOp : PA (Var c) : stack) input = sr (PI (Assign c a) : stack) input -- Instr -> Var AssignOp AExpr
-sr (PI i : PB b : Keyword "while" : stack) input = sr (PI (While b i) : stack) input -- Instr -> While BExpr Instr
-sr (PI i : PA (Var b) : Keyword "while" : stack) input = sr (PI (While (BVar b) i) : stack) input -- Instr -> While BExpr Instr
+sr (Semi : PA a : BOp AssignOp : PA (Var c) : stack) i
+                                            = sr (PI (Assign c a) : stack) i
 
-sr (PI i : Keyword "else" : PI i2 : Keyword "then" : PB b : Keyword "if" : stack) input
-                                             = sr (PI (IfThenElse b i2 i) : stack) input
+sr (PI ins : PB b : Keyword "while" : stack) i
+                                            = sr (PI (While b ins) : stack) i
 
+sr (PI ins : PA (Var b) : Keyword "while" : stack) i
+                                      = sr (PI (While (BVar b) ins) : stack) i
+
+sr (PI ins : Keyword "else" : PI i2 : Keyword "then" : PB b : Keyword "if" : stack) i
+                                             = sr (PI (IfThenElse b i2 ins) : stack) i
+
+sr (PI ins : Keyword "else" : PI i2 : Keyword "then" : PA (Var b) : Keyword "if" : stack) i
+                                          = sr (PI (IfThenElse (BVar b) i2 ins) : stack) i
 -- sr (FSym f : ts ) (LPar : RPar : is)         = sr (PA (FApply f []) : ts) is
 -- sr (FSym f : ts ) (LPar : is)                = sr (PF f [] : ts) is
 -- sr (RPar : PA a : PF f args : ts) i          = sr (PA (FApply f (reverse $ a:args)):ts) i
 -- sr (Comma : PA a : PF f args : ts) i         = sr (PF f (a:args) : ts) i
 
-sr (RBra : PI i : stack) input = sr (PDo [i] : stack) input
-sr (RBra : stack) input = sr (PDo [] : stack) input
-sr (PDo s  : PI i : stack) input = sr (PDo (i:s) : stack) input
-sr (PDo s : LBra : stack) input = sr (PI (Do s) : stack) input
-sr stack                           (i:input) = sr (i:stack) input
+sr (RBra : PI ins : stack) i = sr (PDo [ins] : stack) i
+sr (RBra : stack) i = sr (PDo [] : stack) i
+sr (PDo s  : PI ins : stack) i = sr (PDo (ins:s) : stack) i
+sr (PDo s : LBra : stack) i = sr (PI (Do s) : stack) i
+sr stack                           (ins:i) = sr (ins:stack) i
 sr stack [] = stack
 
 
@@ -375,7 +389,7 @@ main :: IO ()
 main = do
   -- putStrLn "Enter a .imp file with code."
   -- filename <- getLine
-  let filename = "testIf.imp"
+  let filename = "testIf2.imp"
   contents <- readFile filename
 
   let lexed = lexer contents
