@@ -1,7 +1,6 @@
 module Exec where
 
 import Types
-import Debug.Trace
 
 lookUp :: Vars -> Env -> Values
 lookUp x [] = VNull
@@ -28,13 +27,13 @@ extractInt :: Values -> Vars -> Integer
 extractInt (IntPrim x) _ = x
 extractInt x var = error ("Actual value (" ++ show x ++
                           ") - Expected IntPrim -  Make sure var "
-                         ++ (show var) ++ " has been initialized.")
+                         ++ (show var) ++ " has been initialized and is correct type")
 
 extractBool :: Values -> Vars -> Bool
 extractBool (BoolPrim x) _ = x
 extractBool x var = error ("Actual value (" ++ show x ++
                        ") - Expected BoolPrim -  Make sure var "
-                      ++ (show var) ++ " has been initialized.")
+                      ++ (show var) ++ " has been initialized and is correct type")
 
 -- Evaluate
 evala :: Defs -> Env -> AExpr -> Integer
@@ -76,7 +75,7 @@ lookupDef f (fg@(Function g vars insts):gs) | f == g = fg
 
 fromJust :: Maybe a -> a
 fromJust (Just x) = x
-fromJust Nothing = error "nothing to return in fromJust"
+fromJust Nothing = error "Function missing ret value"
 
 -- Execution
 exec :: Defs -> Instr -> Env -> Env

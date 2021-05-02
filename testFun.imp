@@ -1,19 +1,15 @@
 int c:=3;
 int v:=7;
 
-int ans:=SetVar(c, v);
+int ans:=LoopVar(c, v);
 
-def SetVar(int val1, int val2){
-    if (val1 < val2)
-    then{
-        val1 := incrOne(val1);
-    }
-    else {
-        val1:=val2;
+def LoopVar(int val1, int val2){
+    while (val1 < val2){
+        val1:=IncrOne(val2);
     }
     retVal:=val1;
 }
 
-def incrOne(int val){
+def IncrOne(int val){
     retVal:=val+1;
 }
