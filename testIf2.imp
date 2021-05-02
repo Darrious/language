@@ -1,0 +1,11 @@
+
+bool test:=true;
+int c:= 0;
+
+if(test)
+then {
+    c:=7;
+}
+else {
+   c:=2;
+}

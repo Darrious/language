@@ -1,0 +1,6 @@
+int c:= 0;
+
+def SetVar(int c, int val){
+    c:=val;
+
+}

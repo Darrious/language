@@ -1,0 +1,7 @@
+
+var1:=5;
+var2:=7;
+
+if (var1==5)
+then var1:=10
+else var2:=10
