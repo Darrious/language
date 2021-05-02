@@ -36,12 +36,13 @@ sr (PI ins : PA (Var b) : Keyword "while" : stack) i
 sr (PI ins : Keyword "else" : PI i2 : Keyword "then" : PB b : Keyword "if" : stack) i
                                              = sr (PI (IfThenElse b i2 ins) : stack) i
 
-sr (PI ins : Keyword "else" : PI i2 : Keyword "then" : PA (Var b) : Keyword "if" : stack) i
-                                          = sr (PI (IfThenElse (BVar b) i2 ins) : stack) i
--- sr (FSym f : ts ) (LPar : RPar : is)         = sr (PA (FApply f []) : ts) is
--- sr (FSym f : ts ) (LPar : is)                = sr (PF f [] : ts) is
--- sr (RPar : PA a : PF f args : ts) i          = sr (PA (FApply f (reverse $ a:args)):ts) i
--- sr (Comma : PA a : PF f args : ts) i         = sr (PF f (a:args) : ts) i
+
+sr (FSym f : ts ) (LPar : RPar : is)         = sr (PA (FApply f []) : ts) is
+sr (FSym f : ts ) (LPar : is)                = sr (PF f [] : ts) is
+sr (RPar : PA a : PF f args : ts) i          = sr (PA (FApply f (reverse $ a:args)):ts) i
+sr (Comma : PA a : PF f args : ts) i         = sr (PF f (a:args) : ts) i
+
+-- sr (Semi : PA (Var c) : Keyword "ret")       =
 
 sr (RBra : PI ins : stack) i = sr (PDo [ins] : stack) i
 sr (RBra : stack) i = sr (PDo [] : stack) i
@@ -49,3 +50,26 @@ sr (PDo s  : PI ins : stack) i = sr (PDo (ins:s) : stack) i
 sr (PDo s : LBra : stack) i = sr (PI (Do s) : stack) i
 sr stack                           (ins:i) = sr (ins:stack) i
 sr stack [] = stack
+
+getVar :: [AExpr] -> [Vars]
+getVar [] = []
+getVar ((Var a) : as) = [a] ++ (getVar as)
+getVar (a:as) = (getVar as)
+
+
+updateDefs :: [Token] -> Defs
+updateDefs [] = []
+updateDefs (PI (Do a) : PA (FApply name expr) : Keyword "def" : ts)
+          = [Function name (getVar expr) a] ++ (updateDefs ts)
+updateDefs (a:ts) = updateDefs ts
+
+removeDefs :: [Token] -> [Token]
+removeDefs [] = []
+removeDefs (PI (Do a) : PA (FApply name expr) : Keyword "def" : ts)
+          = removeDefs ts
+removeDefs (a:ts) = [a] ++ removeDefs ts
+
+processCalls :: [Token] -> [Token]
+processCalls [] = []
+processCalls (Semi : PA (FApply v expr) : ts) = processCalls (PI (Fun v expr) : ts)
+processCalls (a:as) = [a] ++ processCalls as

@@ -2,7 +2,6 @@ module Types where
 
 -- Variables
 type Vars = String
-type FName = String
 
 data Values = IntPrim Integer | BoolPrim Bool | VNull
     deriving Show
@@ -32,13 +31,16 @@ data Instr = Assign Vars AExpr
            | IfThenElse BExpr Instr Instr
            | While BExpr Instr
            | Do [Instr]
+           | Fun FName [AExpr]
            | Nop
     deriving Show
 
 -- A program is a list of Instructions
 type Program = [Instr]
+type Ret = Vars
+type FName = String
 
-data FunDefn = Function FName [Vars] [Instr]
+data FunDefn = Function FName [Vars] [Instr]  deriving Show
 type Defs = [FunDefn]
 
 -- Lexical Analysis

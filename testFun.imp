@@ -1,6 +1,19 @@
-int c:= 0;
+int c:=3;
+int v:=7;
 
-def SetVar(int c, int val){
-    c:=val;
+int ans:=SetVar(c, v);
 
+def SetVar(int val1, int val2){
+    if (val1 < val2)
+    then{
+        val1 := incrOne(val1);
+    }
+    else {
+        val1:=val2;
+    }
+    retVal:=val1;
+}
+
+def incrOne(int val){
+    retVal:=val+1;
 }

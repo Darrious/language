@@ -1,6 +1,7 @@
 module Exec where
 
 import Types
+import Debug.Trace
 
 lookUp :: Vars -> Env -> Values
 lookUp x [] = VNull
@@ -36,47 +37,63 @@ extractBool x var = error ("Actual value (" ++ show x ++
                       ++ (show var) ++ " has been initialized.")
 
 -- Evaluate
-evala :: Env -> AExpr -> Integer
-evala env (Const (IntPrim a)) = a
-evala env (Var v)   = extractInt(lookUp v env) v
-evala env (Add a b) = evala env a + evala env b
-evala env (Sub a b) = evala env a - evala env b
-evala env (Mul a b) = evala env a * evala env b
-evala env (Div a b) = evala env a `div` evala env b
-evala env (Mod a b) = evala env a `mod` evala env b
+evala :: Defs -> Env -> AExpr -> Integer
+evala defs env (Const (IntPrim a)) = a
+evala defs env (Var v)   = extractInt(lookUp v env) v
+evala defs env (Add a b) = evala defs env a + evala defs env b
+evala defs env (Sub a b) = evala defs env a - evala defs env b
+evala defs env (Mul a b) = evala defs env a * evala defs env b
+evala defs env (Div a b) = evala defs env a `div` evala defs env b
+evala defs env (Mod a b) = evala defs env a `mod` evala defs env b
+evala defs env (FApply f args) =
+  let evalArgs = map (evala defs env) args -- :: [Integer]
+      (Function _ vars body) = lookupDef f defs
+      bindings = zip vars [IntPrim x | x <-evalArgs]
+      execBody = exec defs (Do body) bindings
+   in extractInt (fromJust (lookup ("retVal") execBody)) "retVal"
 
-testA = Add (Var "X") (Const (IntPrim 9))
 
-evalb :: Env -> BExpr -> Bool
-evalb env TT        = True
-evalb env FF        = False
-evalb env (And a b) = (evalb env a) && (evalb env b)
-evalb env (Or  a b) = (evalb env a) || (evalb env b)
-evalb env (Eql a b) = (evala env a) == (evala env b)
-evalb env (Lt a b)  = (evala env a) < (evala env b)
-evalb env (Gt a b)  = (evala env a) > (evala env b)
-evalb env (Not b)   = (not (evalb env b))
+
+evalb :: Defs -> Env -> BExpr -> Bool
+evalb defs env TT        = True
+evalb defs env FF        = False
+evalb defs env (And a b) = (evalb defs env a) && (evalb defs env b)
+evalb defs env (Or  a b) = (evalb defs env a) || (evalb defs env b)
+evalb defs env (Eql a b) = (evala defs env a) == (evala defs env b)
+evalb defs env (Lt a b)  = (evala defs env a) < (evala defs env b)
+evalb defs env (Gt a b)  = (evala defs env a) > (evala defs  env b)
+evalb defs env (Not b)   = (not (evalb defs env b))
 
 boolToExpr :: Bool -> BExpr
 boolToExpr False = FF
 boolToExpr True = TT
 
+lookupDef :: FName -> Defs -> FunDefn
+lookupDef f [] = error $ "No such function found: " ++ f
+lookupDef f (fg@(Function g vars insts):gs) | f == g = fg
+                                            | otherwise = lookupDef f gs
+
+
+fromJust :: Maybe a -> a
+fromJust (Just x) = x
+fromJust Nothing = error "nothing to return in fromJust"
+
 -- Execution
-exec :: Instr -> Env -> Env
-exec (Nop) env                = env
-exec (Assign a (Const prim)) env = update a prim env
-exec (Assign a b) env         = update a (IntPrim (evala env b)) env
-exec (IfThenElse (BVar v) b c) env   = if (evalb env (boolToExpr(extractBool(lookUp v env) v)))
-                                       then (exec b env)
-                                       else (exec c env)
-exec (IfThenElse a b c) env   = if (evalb env a)
-                                then (exec b env)
-                                else (exec c env)
-exec (While (BVar v) b) env   = if (evalb env ( boolToExpr(extractBool(lookUp v env) v)))
-                                then (exec (While (BVar v) b) (exec b env))
+exec :: Defs -> Instr -> Env -> Env
+exec defs (Nop) env                = env
+exec defs (Assign a (Const prim)) env = update a prim env
+exec defs (Assign a b) env         = update a (IntPrim (evala defs env b)) env
+exec defs (IfThenElse (BVar v) b c) env   = if (evalb defs env (boolToExpr(extractBool(lookUp v env) v)))
+                                       then (exec defs b env)
+                                       else (exec defs c env)
+exec defs (IfThenElse a b c) env   = if (evalb defs env a)
+                                then (exec defs b env)
+                                else (exec defs c env)
+exec defs i@(While (BVar v) b) env   = if (evalb defs env ( boolToExpr(extractBool(lookUp v env) v)))
+                                then (exec defs i (exec defs b env))
                                 else env
-exec (While a b) env          = if (evalb env a)
-                                then (exec (While a b) (exec b env))
+exec defs i@(While a b) env          = if (evalb defs  env a)
+                                then (exec defs i (exec defs b env))
                                 else env
-exec (Do []) env              = env
-exec (Do (i:is)) env          = exec (Do is) (exec i env)
+exec defs (Do []) env              = env
+exec defs (Do (i:is)) env          = exec defs (Do is) (exec defs i env)

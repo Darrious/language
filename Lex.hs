@@ -14,6 +14,7 @@ classify s@"then" = Keyword s
 classify s@"else" = Keyword s
 classify s@"nop" = Keyword s
 classify s@"def" = Keyword s
+classify s@"ret" = Keyword s
 
 classify s@"+" = BOp AddOp
 classify s@"-" = BOp SubOp
