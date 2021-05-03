@@ -49,28 +49,17 @@ data BOps = AddOp | SubOp | MulOp | DivOp | AndOp | OrOp | EqlOp | LtOp | GtOp
           | AssignOp | ModOp
     deriving (Show,Enum,Eq,Ord)
 
-
+-- Variable types
 data Types = IntType | DoubleType | BoolType | StringType
    deriving Show
 
 
+-- Data structures
 data Array = Arr [Values]
 data LList = Node Values LList | Null deriving Show
 data Struct = Array | LList deriving Show
 
-
-
--- function vs var names
--- instr block
--- Decl
--- add method type to AExpr
--- data Method = Function FName Types Decl [Instr]
---
--- type Decl = [(Vars, Types)]
-
-
-
-
+-- Tokens
 data Token = VSym Vars | CSym Integer | BSym Bool | FSym FName
            | UOp UOps | BOp BOps
            | LPar | RPar | LBra | RBra | Semi

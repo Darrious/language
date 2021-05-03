@@ -1,0 +1,12 @@
+int c:=5;
+int ans:=Fact(c);
+
+def Fact(int val){
+    if (val == 0)
+    then {
+        retVal:=1;
+    }
+    else {
+        retVal:=val * Fact(val-1);
+    }
+}

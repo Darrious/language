@@ -7,7 +7,6 @@ while (look){
     if (count>3)
     then {
         look:=false;
-        count:=6;
     } else {
         count:=count+1;
     }
